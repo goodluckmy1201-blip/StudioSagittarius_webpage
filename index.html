@@ -21,6 +21,10 @@
     body{
       margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Noto Sans JP, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
       background:#fff; color:#111; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+      /* モバイル時のフォールバック指定（上書きされる前提） */
+      background-position: top center;
+      background-repeat: no-repeat;
+      background-size: cover;
     }
 
     /* ヘッダー */
@@ -43,14 +47,12 @@
 
     .wrap{position:relative; z-index:1; max-width:var(--max); margin:0 auto; padding:24px; padding-bottom: calc(24px + var(--footer-h, 96px));}
 
-    /* 背景レイヤー
-       PC: 固定（position:fixed）
-       モバイル: 絶対配置＋縦長フレーム（JSでページの高さに追従） */
+    /* PC用の背景（固定レイヤー） */
     .backdrop{
       position:fixed; inset:0; z-index:0; pointer-events:none;
       display:flex; justify-content:center; align-items:flex-start; overflow:hidden;
     }
-    .bgframe{width:100vw; height:150vh;} /* PCの既定値。スマホではJSで上書き */
+    .bgframe{width:100vw; height:150vh;}
     .backdrop img{width:100%; height:100%; object-fit:cover; display:block}
 
     /* PR動画 */
@@ -90,18 +92,27 @@
     .site-footer .inner{max-width:var(--max); margin:0 auto; padding:10px 24px; display:flex; align-items:center; justify-content:center}
     .footer-banner{display:block; width:min(1100px, 100%); max-height:72px; height:auto; object-fit:contain}
 
-    /* モバイル：固定を避け、縦長フレームを使う */
+    /* ── ここがポイント：モバイルはタイル式に切り替え ── */
     @media (max-width: 768px){
-      .backdrop{
-        position:absolute; /* ← fixedをやめる */
-        top:0; left:0; right:0;
+      .backdrop{display:none;} /* 二重表示を避けるためPC用背景を非表示 */
+      body{
+        background-image:url("/images/long-bg.png"); /* 軽量版があれば差し替え可 */
+        background-repeat: repeat-y;    /* 下方向に継ぎ足す */
+        background-size: 100% auto;     /* 横幅に合わせる（歪み防止） */
+        background-position: top center;
+        background-attachment: scroll;  /* 念のため（iOSのfixed回避） */
       }
-      /* .bgframe の高さはJSでページ長に合わせてpx指定に更新します */
     }
 
-    /* 省データモードでも背景を消さない（必要ならコメントアウト可） */
+    /* 省データモードのときも消さない（必要なら外してください） */
     @media (prefers-reduced-data: reduce){
-      .backdrop{display:flex;}
+      .backdrop{display:none;}
+      body{
+        background-image:url("/images/long-bg.png");
+        background-repeat: repeat-y;
+        background-size: 100% auto;
+        background-position: top center;
+      }
     }
   </style>
 </head>
@@ -117,13 +128,11 @@
     </div>
   </header>
 
-  <!-- 背景レイヤー：PCはfixed、モバイルはabsolute＋縦長フレーム -->
+  <!-- PC向け背景（モバイルでは非表示） -->
   <div class="backdrop" aria-hidden="true">
     <div class="bgframe">
       <picture>
-        <!-- 高解像度端末向け。存在する実ファイル名に合わせてください -->
         <source srcset="/images/long-bg-3840x2560.png 2x, /images/long-bg-1920x1280.png 1x" />
-        <!-- フォールバック（必ず存在する実ファイルを指定） -->
         <img src="/images/long-bg.png" alt="サイト全体の背景ビジュアル" />
       </picture>
     </div>
@@ -245,52 +254,6 @@
         }
         el.addEventListener('click', (e)=>{ e.preventDefault(); toggle(el); });
       }
-    })();
-
-    // ★ モバイル時：背景フレームをページの長さに合わせて自動リサイズ
-    (function(){
-      const mq = window.matchMedia('(max-width: 768px)');
-      const backdrop = document.querySelector('.backdrop');
-      const frame = document.querySelector('.bgframe');
-      if (!backdrop || !frame) return;
-
-      const resizeBg = () => {
-        if (!mq.matches) { // PC時は既定値のまま
-          frame.style.height = '150vh';
-          return;
-        }
-        // ドキュメント全体の高さ（最長のスクロール長）に合わせる
-        const docH = Math.max(
-          document.body.scrollHeight, document.documentElement.scrollHeight,
-          document.body.offsetHeight, document.documentElement.offsetHeight,
-          document.body.clientHeight, document.documentElement.clientHeight
-        );
-        frame.style.height = docH + 'px';
-      };
-
-      // リサイズやDOM変化に追従
-      let rafId = null;
-      const schedule = () => {
-        if (rafId) cancelAnimationFrame(rafId);
-        rafId = requestAnimationFrame(resizeBg);
-      };
-
-      window.addEventListener('load', schedule, { once:true });
-      window.addEventListener('resize', schedule);
-      document.addEventListener('scroll', () => { /* スクロールで高さは変わらないが、他要素の遅延読込に備える */ schedule(); }, { passive:true });
-
-      // 画像が読み込まれてからも再計測
-      const img = backdrop.querySelector('img');
-      if (img) {
-        if (img.complete) schedule();
-        else img.addEventListener('load', schedule, { once:true });
-      }
-
-      // メディアクエリ切替時
-      mq.addEventListener ? mq.addEventListener('change', schedule) : mq.addListener(schedule);
-
-      // 初期実行
-      schedule();
     })();
   </script>
 
