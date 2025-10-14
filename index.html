@@ -92,10 +92,15 @@
 
     /* ▼【追加】モバイルではPC用の固定レイヤーを隠し、bodyの背景画像を使用 */
     @media (max-width: 768px){
-      .backdrop{display:none;}
-      /* 必要に応じて軽量画像に変更してください */
-      body{ background-image:url("/images/long-bg-mobile.jpg"); }
-    }
+  .backdrop{display:none;}
+  body{
+    background-image:url("/images/long-bg-mobile.jpg");
+    /* ここを追加／変更 */
+    background-repeat: repeat-y;   /* 下方向に継ぎ足す */
+    background-size: 100% auto;    /* 横幅に合わせて縦は自然に */
+    background-position: top center;
+  }
+}
 
     /* ▼【追加】データ節約モード向け（対応ブラウザ） */
     @media (prefers-reduced-data: reduce){
@@ -248,3 +253,4 @@
   <style id="label-override">.cap .label.music{color:#0a84ff !important;} .cap .label.game{color:#09a66d !important;}</style>
 </body>
 </html>
+
