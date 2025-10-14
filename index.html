@@ -21,10 +21,6 @@
     body{
       margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Noto Sans JP, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
       background:#fff; color:#111; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
-      /* ▼【追加】モバイル用の背景（フォールバック） */
-      background-position:center;
-      background-repeat:no-repeat;
-      background-size:cover;
     }
 
     /* ヘッダー */
@@ -44,13 +40,17 @@
     .x-link{display:inline-flex; width:52px; height:52px; align-items:center; justify-content:center; border-radius:12px; background:#0b0b0b; border:1px solid #1d1d1d; opacity:.9; transition:opacity .2s ease, transform .2s ease}
     .x-link:hover{opacity:1; transform:translateY(-1px)}
     .x-link:focus-visible{outline:2px solid #66e0ff; outline-offset:2px}
-    .x-link svg{width:16px; height:16px; color:#fff}
 
     .wrap{position:relative; z-index:1; max-width:var(--max); margin:0 auto; padding:24px; padding-bottom: calc(24px + var(--footer-h, 96px));}
 
-    /* ▼PC用の背景レイヤー（固定） */
-    .backdrop{position:fixed; inset:0; z-index:0; pointer-events:none; display:flex; justify-content:center; align-items:flex-start; overflow:hidden}
-    .bgframe{width:100vw; height:150vh}
+    /* 背景レイヤー
+       PC: 固定（position:fixed）
+       モバイル: 絶対配置＋縦長フレーム（JSでページの高さに追従） */
+    .backdrop{
+      position:fixed; inset:0; z-index:0; pointer-events:none;
+      display:flex; justify-content:center; align-items:flex-start; overflow:hidden;
+    }
+    .bgframe{width:100vw; height:150vh;} /* PCの既定値。スマホではJSで上書き */
     .backdrop img{width:100%; height:100%; object-fit:cover; display:block}
 
     /* PR動画 */
@@ -90,31 +90,18 @@
     .site-footer .inner{max-width:var(--max); margin:0 auto; padding:10px 24px; display:flex; align-items:center; justify-content:center}
     .footer-banner{display:block; width:min(1100px, 100%); max-height:72px; height:auto; object-fit:contain}
 
-    /* ▼【追加】モバイルではPC用の固定レイヤーを隠し、bodyの背景画像を使用 */
-   @media (max-width: 768px){
-  .backdrop{display:none;}
-  body{
-    background-image:url("/images/long-bg-mobile.jpg");
-    /* ここを追加／変更 */
-    background-repeat: repeat-y;   /* 下方向に継ぎ足す */
-    background-size: 100% auto;    /* 横幅に合わせて縦は自然に */
-    background-position: top center;
-  }
-}
+    /* モバイル：固定を避け、縦長フレームを使う */
+    @media (max-width: 768px){
+      .backdrop{
+        position:absolute; /* ← fixedをやめる */
+        top:0; left:0; right:0;
+      }
+      /* .bgframe の高さはJSでページ長に合わせてpx指定に更新します */
+    }
 
-  .bgframe{
-    width:100vw;
-    height:300vh;            /* ページが長い想定で余裕を持たせる（必要に応じて 400vh など） */
-  }
-  .backdrop img{object-fit:cover;}
-  /* body 側の背景はオフにして二重表示を避ける */
-  body{ background-image:none; }
-}
-
-    /* ▼【追加】データ節約モード向け（対応ブラウザ） */
+    /* 省データモードでも背景を消さない（必要ならコメントアウト可） */
     @media (prefers-reduced-data: reduce){
-      .backdrop{display:none;}
-      body{ background-image:url("/images/long-bg-mobile.jpg"); }
+      .backdrop{display:flex;}
     }
   </style>
 </head>
@@ -130,13 +117,14 @@
     </div>
   </header>
 
-  <!-- ▼PCではこちらが効く（モバイルでは非表示に） -->
+  <!-- 背景レイヤー：PCはfixed、モバイルはabsolute＋縦長フレーム -->
   <div class="backdrop" aria-hidden="true">
     <div class="bgframe">
       <picture>
-        <!-- 高解像度端末向け。必要に応じてサイズを調整してください -->
+        <!-- 高解像度端末向け。存在する実ファイル名に合わせてください -->
         <source srcset="/images/long-bg-3840x2560.png 2x, /images/long-bg-1920x1280.png 1x" />
-        <img src="/images/long-bg-1920x1280.png" alt="サイト全体の背景ビジュアル" />
+        <!-- フォールバック（必ず存在する実ファイルを指定） -->
+        <img src="/images/long-bg.png" alt="サイト全体の背景ビジュアル" />
       </picture>
     </div>
   </div>
@@ -202,7 +190,7 @@
   </div>
 
   <script>
-    // 年表示（要素が無い場合は何もしないように修正）
+    // 年表示（要素が無い場合は何もしない）
     (function(){
       const yEl = document.getElementById('year');
       if (yEl) yEl.textContent = new Date().getFullYear();
@@ -258,10 +246,54 @@
         el.addEventListener('click', (e)=>{ e.preventDefault(); toggle(el); });
       }
     })();
+
+    // ★ モバイル時：背景フレームをページの長さに合わせて自動リサイズ
+    (function(){
+      const mq = window.matchMedia('(max-width: 768px)');
+      const backdrop = document.querySelector('.backdrop');
+      const frame = document.querySelector('.bgframe');
+      if (!backdrop || !frame) return;
+
+      const resizeBg = () => {
+        if (!mq.matches) { // PC時は既定値のまま
+          frame.style.height = '150vh';
+          return;
+        }
+        // ドキュメント全体の高さ（最長のスクロール長）に合わせる
+        const docH = Math.max(
+          document.body.scrollHeight, document.documentElement.scrollHeight,
+          document.body.offsetHeight, document.documentElement.offsetHeight,
+          document.body.clientHeight, document.documentElement.clientHeight
+        );
+        frame.style.height = docH + 'px';
+      };
+
+      // リサイズやDOM変化に追従
+      let rafId = null;
+      const schedule = () => {
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(resizeBg);
+      };
+
+      window.addEventListener('load', schedule, { once:true });
+      window.addEventListener('resize', schedule);
+      document.addEventListener('scroll', () => { /* スクロールで高さは変わらないが、他要素の遅延読込に備える */ schedule(); }, { passive:true });
+
+      // 画像が読み込まれてからも再計測
+      const img = backdrop.querySelector('img');
+      if (img) {
+        if (img.complete) schedule();
+        else img.addEventListener('load', schedule, { once:true });
+      }
+
+      // メディアクエリ切替時
+      mq.addEventListener ? mq.addEventListener('change', schedule) : mq.addListener(schedule);
+
+      // 初期実行
+      schedule();
+    })();
   </script>
+
   <style id="label-override">.cap .label.music{color:#0a84ff !important;} .cap .label.game{color:#09a66d !important;}</style>
 </body>
 </html>
-
-
-
